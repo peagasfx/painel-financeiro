@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Painel Financeiro – Fabiano</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body { background: #0b1120; color: #e5e7eb; padding: 20px; }
+    h1 { font-size: 24px; margin-bottom: 4px; }
+    h2 { font-size: 20px; margin: 20px 0 10px; }
+
+    .topbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+    .topbar-right { font-size:12px; color:#9ca3af; display:flex; gap:8px; align-items:center; }
+    .chip { padding:2px 8px; border-radius:999px; background:#111827; border:1px solid #1f2937; }
+    .link { cursor:pointer; color:#93c5fd; }
+    .link:hover { text-decoration:underline; }
+
+    .menu-btn {
+      cursor:pointer;
+      padding:6px 10px;
+      border-radius:999px;
+      border:1px solid #1f2937;
+      background:#111827;
+      display:flex;
+      flex-direction:column;
+      gap:3px;
+      justify-content:center;
+      align-items:center;
+    }
+    .menu-line {
+      width:16px;
+      height:2px;
+      background:#e5e7eb;
+    }
+
+    .grid { display: grid; gap: 16px; }
+    .grid-3 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+    .card { background: #111827; border-radius: 12px; padding: 16px; border: 1px solid #1f2937; }
+    .card-header { font-weight: 600; margin-bottom: 8px; }
+
+    .summary-value { font-size: 20px; font-weight: 700; }
+    .summary-label { font-size: 12px; color: #9ca3af; }
+
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+    th, td { border: 1px solid #1f2937; padding: 6px 8px; text-align: center; }
+    th { background: #1f2937; font-weight: 600; }
+    input[type="number"], input[type="text"], input[type="date"] {
+      width: 100%; padding: 4px 6px; border-radius: 6px; border: 1px solid #374151;
+      background: #020617; color: #e5e7eb; font-size: 12px;
+    }
+    input[type="number"]:focus, input[type="text"]:focus, input[type="date"]:focus {
+      outline: 1px solid #3b82f6;
+    }
+    .btn {
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: none;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .btn-primary { background: #2563eb; color: #e5e7eb; }
+    .btn-secondary { background: #374151; color: #e5e7eb; }
+    .btn + .btn { margin-left: 6px; }
+
+    .progress-bar-wrap {
+      width: 100%; background: #020617; border-radius: 999px;
+      overflow: hidden; height: 14px; border: 1px solid #1f2937; margin-top: 4px;
+    }
+    .progress-bar-fill {
+      height: 100%; background: #22c55e; width: 0%; transition: width 0.3s;
+    }
+    .progress-text { font-size: 11px; color: #9ca3af; margin-top: 2px; }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 2fr) minmax(0, 1.4fr);
+      gap: 20px;
+    }
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+    }
+    canvas { background: #020617; border-radius: 8px; padding: 8px; }
+
+    .page { margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <!-- MENU LATERAL -->
+  <div id="sidebar" style="
+    position:fixed;
+    top:0; left:-260px;
+    width:260px; height:100vh;
+    background:#0f172a;
+    color:white;
+    transition:0.3s;
+    padding:20px;
+    border-right:1px solid #1e293b;
+    z-index:998;
+  ">
+    <h2 style="margin-bottom:20px;">Menu</h2>
+    <div class="menu-item" data-page="financeiro" style="padding:10px 0; cursor:pointer;">📘 Plano Financeiro</div>
+    <div class="menu-item" data-page="pv" style="padding:10px 0; cursor:pointer;">💸 Operação PV Money</div>
+    <div class="menu-item" data-page="escalador" style="padding:10px 0; cursor:pointer;">⚡ Operação Escalador de Pix</div>
+  </div>
+
+  <div class="topbar">
+    <div>
+      <h1>Painel Financeiro – Fabiano</h1>
+      <p style="font-size: 13px; color: #9ca3af;">
+        Meta: <strong>R$ 3.500/mês guardados</strong> (metas + reserva), limite de
+        <strong>R$ 2.000</strong> essenciais e <strong>R$ 700</strong> supérfluos.
+      </p>
+    </div>
+    <div class="topbar-right">
+      <div id="menuBtn" class="menu-btn" title="Abrir menu">
+        <span class="menu-line"></span>
+        <span class="menu-line"></span>
+        <span class="menu-line"></span>
+      </div>
+      <span id="userInfo" class="chip"></span>
+      <span id="roleInfo" class="chip"></span>
+      <span id="goAdmin" class="link" style="display:none;">Admin</span>
+      <span id="logout" class="link">Sair</span>
+    </div>
+  </div>
+
+  <!-- TELA 1 – PLANO FINANCEIRO -->
+  <div id="page-financeiro" class="page">
+    <!-- Resumo topo -->
+    <section class="grid grid-3">
+      <div class="card">
+        <div class="card-header">Gastos do Mês</div>
+        <div class="summary-value" id="sumEssenciais">R$ 0,00</div>
+        <div class="summary-label">Essenciais</div>
+        <div class="summary-value" id="sumNaoEssenciais" style="margin-top: 8px;">R$ 0,00</div>
+        <div class="summary-label">Não essenciais (supérfluos)</div>
+      </div>
+      <div class="card">
+        <div class="card-header">Meta de Poupança</div>
+        <div class="summary-value" id="sumGuardado">R$ 0,00</div>
+        <div class="summary-label">Total guardado (objetivos + reserva)</div>
+        <div class="summary-value" id="sumDividas" style="margin-top: 8px;">R$ 0,00</div>
+        <div class="summary-label">Pagamento de dívidas no mês</div>
+      </div>
+      <div class="card">
+        <div class="card-header">Status da Meta</div>
+        <div class="summary-value" id="metaStatus">0%</div>
+        <div class="summary-label">Progresso em relação aos R$ 3.500</div>
+      </div>
+    </section>
+
+    <!-- Config + layout -->
+    <section style="margin-top: 20px;" class="layout">
+      <div>
+        <!-- Configurações -->
+        <div class="card">
+          <div class="card-header">Configurações do Mês</div>
+          <div class="grid grid-3">
+            <div>
+              <label style="font-size: 11px;">Limite Essenciais (R$)</label>
+              <input type="number" id="limEssenciais" value="2000" step="0.01" />
+            </div>
+            <div>
+              <label style="font-size: 11px;">Limite Não Essenciais (R$)</label>
+              <input type="number" id="limNaoEssenciais" value="700" step="0.01" />
+            </div>
+            <div>
+              <label style="font-size: 11px;">Meta Guardar (R$)</label>
+              <input type="number" id="metaGuardar" value="3500" step="0.01" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Metas -->
+        <div class="card" style="margin-top: 16px;">
+          <div class="card-header">Metas Grandes (PC, Civic, Casa)</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Meta</th>
+                <th>Objetivo (R$)</th>
+                <th>Já guardado (R$)</th>
+                <th>%</th>
+              </tr>
+            </thead>
+            <tbody id="metasBody">
+              <tr data-meta="pc">
+                <td>PC Gamer</td>
+                <td><input type="number" class="meta-alvo" value="12000" step="0.01" /></td>
+                <td><input type="number" class="meta-guardado" value="0" step="0.01" /></td>
+                <td class="meta-perc">0%</td>
+              </tr>
+              <tr data-meta="civic">
+                <td>Civic G10</td>
+                <td><input type="number" class="meta-alvo" value="120000" step="0.01" /></td>
+                <td><input type="number" class="meta-guardado" value="0" step="0.01" /></td>
+                <td class="meta-perc">0%</td>
+              </tr>
+              <tr data-meta="casa">
+                <td>Casa Alto Padrão</td>
+                <td><input type="number" class="meta-alvo" value="700000" step="0.01" /></td>
+                <td><input type="number" class="meta-guardado" value="0" step="0.01" /></td>
+                <td class="meta-perc">0%</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div id="metasBars" style="margin-top: 10px;">
+            <div style="margin-bottom: 8px;">
+              <div style="font-size: 12px;">PC Gamer</div>
+              <div class="progress-bar-wrap">
+                <div class="progress-bar-fill" id="bar-pc"></div>
+              </div>
+              <div class="progress-text" id="text-pc"></div>
+            </div>
+            <div style="margin-bottom: 8px;">
+              <div style="font-size: 12px;">Civic G10</div>
+              <div class="progress-bar-wrap">
+                <div class="progress-bar-fill" id="bar-civic"></div>
+              </div>
+              <div class="progress-text" id="text-civic"></div>
+            </div>
+            <div>
+              <div style="font-size: 12px;">Casa Alto Padrão</div>
+              <div class="progress-bar-wrap">
+                <div class="progress-bar-fill" id="bar-casa"></div>
+              </div>
+              <div class="progress-text" id="text-casa"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Lançamentos do mês -->
+        <div class="card" style="margin-top: 16px;">
+          <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+            <span>Lançamentos do mês (vida pessoal)</span>
+            <div>
+              <button class="btn btn-secondary" type="button" id="btnAddLinhaData">+ Linha</button>
+              <button class="btn btn-primary" type="button" id="btnAtualizarPainel">Atualizar Painel</button>
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Essenciais</th>
+                <th>Não essenciais</th>
+                <th>Guardado objetivos</th>
+                <th>Guardado reserva</th>
+                <th>Pagto dívidas</th>
+                <th>Total guardado (D+E+F)</th>
+              </tr>
+            </thead>
+            <tbody id="dataBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Lado direito: gráfico -->
+      <div>
+        <div class="card">
+          <div class="card-header">Gráfico – Total guardado por dia</div>
+          <canvas id="chartGuardado" height="180"></canvas>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- TELA 2 – OPERAÇÃO PV MONEY -->
+  <div id="page-pv" class="page" style="display:none;">
+    <h2>Operação PV Money</h2>
+    <section class="grid grid-3">
+      <div class="card">
+        <div class="card-header">Total Gasto</div>
+        <div class="summary-value" id="pvTotalGasto">R$ 0,00</div>
+      </div>
+      <div class="card">
+        <div class="card-header">Total Retorno</div>
+        <div class="summary-value" id="pvTotalRetorno">R$ 0,00</div>
+      </div>
+      <div class="card">
+        <div class="card-header">ROI Médio / Lucro</div>
+        <div class="summary-value" id="pvRoiMedio">0,00</div>
+        <div class="summary-label" id="pvLucroTotal">Lucro: R$ 0,00</div>
+      </div>
+    </section>
+
+    <div class="card" style="margin-top:16px;">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>Lançamentos da Operação</span>
+        <div>
+          <button class="btn btn-secondary" id="btnAddLinhaPV">+ Linha</button>
+          <button class="btn btn-primary" id="btnAtualizarPV">Atualizar PV</button>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Conta</th>
+            <th>Gasto</th>
+            <th>Retorno</th>
+            <th>ROI</th>
+            <th>Lucro</th>
+            <th>Caixa acumulado</th>
+          </tr>
+        </thead>
+        <tbody id="pvBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TELA 3 – OPERAÇÃO ESCALADOR DE PIX -->
+  <div id="page-escalador" class="page" style="display:none;">
+    <h2>Operação Escalador de Pix – Gerador</h2>
+    <section class="grid grid-3">
+      <div class="card">
+        <div class="card-header">Total Gasto</div>
+        <div class="summary-value" id="escTotalGasto">R$ 0,00</div>
+      </div>
+      <div class="card">
+        <div class="card-header">Total Retorno</div>
+        <div class="summary-value" id="escTotalRetorno">R$ 0,00</div>
+      </div>
+      <div class="card">
+        <div class="card-header">ROI Médio / Lucro</div>
+        <div class="summary-value" id="escRoiMedio">0,00</div>
+        <div class="summary-label" id="escLucroTotal">Lucro: R$ 0,00</div>
+      </div>
+    </section>
+
+    <div class="card" style="margin-top:16px;">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>Lançamentos da Operação</span>
+        <div>
+          <button class="btn btn-secondary" id="btnAddLinhaEsc">+ Linha</button>
+          <button class="btn btn-primary" id="btnAtualizarEsc">Atualizar Operação</button>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Conta</th>
+            <th>Gasto</th>
+            <th>Retorno</th>
+            <th>ROI</th>
+            <th>Lucro</th>
+            <th>Caixa acumulado</th>
+          </tr>
+        </thead>
+        <tbody id="escBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    // --- Auth check ---
+    (function checkAuth() {
+      const token = localStorage.getItem('token');
+      const role = localStorage.getItem('role');
+      const name = localStorage.getItem('name') || 'Usuário';
+
+      if (!token || !role) {
+        window.location.href = '/';
+        return;
+      }
+
+      document.getElementById('userInfo').textContent = name;
+      document.getElementById('roleInfo').textContent = role === 'admin' ? 'Admin' : 'User';
+
+      if (role === 'admin') {
+        document.getElementById('goAdmin').style.display = 'inline';
+      }
+
+      document.getElementById('logout').addEventListener('click', () => {
+        localStorage.clear();
+        window.location.href = '/';
+      });
+
+      document.getElementById('goAdmin').addEventListener('click', () => {
+        window.location.href = '/painel-admin.html';
+      });
+    })();
+
+    // MENU LATERAL + BOTÃO
+    const menuBtn = document.getElementById("menuBtn");
+    const sidebar = document.getElementById("sidebar");
+    const pages = {
+      financeiro: document.getElementById("page-financeiro"),
+      pv: document.getElementById("page-pv"),
+      escalador: document.getElementById("page-escalador"),
+    };
+
+    menuBtn.addEventListener("click", () => {
+      sidebar.style.left = sidebar.style.left === "0px" ? "-260px" : "0px";
+    });
+
+    document.querySelectorAll(".menu-item").forEach(item => {
+      item.onclick = () => {
+        const page = item.dataset.page;
+        Object.values(pages).forEach(p => p.style.display = "none");
+        pages[page].style.display = "block";
+        sidebar.style.left = "-260px";
+      };
+    });
+
+    // --- Utils ---
+    function parseValor(v) {
+      if (!v) return 0;
+      if (typeof v !== "string") return isNaN(v) ? 0 : v;
+      v = v.replace(/\./g, "").replace(",", ".");
+      const n = parseFloat(v);
+      return isNaN(n) ? 0 : n;
+    }
+
+    function formatBRL(v) {
+      return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    }
+
+    function addRowData() {
+      const tbody = document.getElementById("dataBody");
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><input type="date" /></td>
+        <td><input type="number" step="0.01" /></td>
+        <td><input type="number" step="0.01" /></td>
+        <td><input type="number" step="0.01" /></td>
+        <td><input type="number" step="0.01" /></td>
+        <td><input type="number" step="0.01" /></td>
+        <td class="total-saved">R$ 0,00</td>
+      `;
+      tbody.appendChild(tr);
+    }
+
+    function addRowOperacao(tbodyId) {
+      const tbody = document.getElementById(tbodyId);
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><input type="date" /></td>
+        <td><input type="text" /></td>
+        <td><input type="number" step="0.01" /></td>
+        <td><input type="number" step="0.01" /></td>
+        <td class="pv-roi">0,00</td>
+        <td class="pv-lucro">R$ 0,00</td>
+        <td class="pv-caixa">R$ 0,00</td>
+      `;
+      tbody.appendChild(tr);
+    }
+
+    let chartGuardado = null;
+
+    function atualizarMetas() {
+      const linhas = document.querySelectorAll("#metasBody tr");
+      linhas.forEach((tr) => {
+        const alvoInput = tr.querySelector(".meta-alvo");
+        const guardadoInput = tr.querySelector(".meta-guardado");
+        const percCell = tr.querySelector(".meta-perc");
+
+        const alvo = parseValor(alvoInput.value);
+        const guardado = parseValor(guardadoInput.value);
+        const perc = alvo > 0 ? Math.min(guardado / alvo, 1) : 0;
+        percCell.textContent = (perc * 100).toFixed(1) + "%";
+
+        const metaKey = tr.dataset.meta;
+        const bar = document.getElementById("bar-" + metaKey);
+        const text = document.getElementById("text-" + metaKey);
+        if (bar && text) {
+          bar.style.width = (perc * 100).toFixed(1) + "%";
+          text.textContent = `${(perc * 100).toFixed(1)}% (${formatBRL(guardado)} de ${formatBRL(alvo)})`;
+        }
+      });
+    }
+
+    function recalcularFinanceiro() {
+      atualizarMetas();
+      const limEss = parseValor(document.getElementById("limEssenciais").value);
+      const limNaoEss = parseValor(document.getElementById("limNaoEssenciais").value);
+      const metaGuardar = parseValor(document.getElementById("metaGuardar").value);
+
+      const dataRows = Array.from(document.querySelectorAll("#dataBody tr"));
+
+      let totalEss = 0;
+      let totalNaoEss = 0;
+      let totalGuardado = 0;
+      let totalDividas = 0;
+
+      const chartLabels = [];
+      const chartValues = [];
+
+      dataRows.forEach((tr, idx) => {
+        const tds = tr.querySelectorAll("td");
+        const dataInput = tds[0].querySelector("input");
+        const essInput = tds[1].querySelector("input");
+        const naoEssInput = tds[2].querySelector("input");
+        const objInput = tds[3].querySelector("input");
+        const resInput = tds[4].querySelector("input");
+        const divInput = tds[5].querySelector("input");
+        const totalCell = tds[6];
+
+        const ess = parseValor(essInput.value);
+        const naoEss = parseValor(naoEssInput.value);
+        const obj = parseValor(objInput.value);
+        const res = parseValor(resInput.value);
+        const div = parseValor(divInput.value);
+
+        const totalDiaGuardado = obj + res + div;
+
+        totalEss += ess;
+        totalNaoEss += naoEss;
+        totalGuardado += obj + res;
+        totalDividas += div;
+
+        essInput.style.background = ess > limEss ? "#7f1d1d" : "#020617";
+        naoEssInput.style.background = naoEss > limNaoEss ? "#78350f" : "#020617";
+
+        totalCell.textContent = formatBRL(totalDiaGuardado);
+
+        const label = dataInput.value ? dataInput.value : `Dia ${idx + 1}`;
+        chartLabels.push(label);
+        chartValues.push(totalDiaGuardado);
+      });
+
+      const metaOK = totalGuardado >= metaGuardar;
+
+      document.getElementById("sumEssenciais").textContent = formatBRL(totalEss);
+      document.getElementById("sumNaoEssenciais").textContent = formatBRL(totalNaoEss);
+      const sumGuardadoEl = document.getElementById("sumGuardado");
+      sumGuardadoEl.textContent = formatBRL(totalGuardado);
+      sumGuardadoEl.style.color = metaOK ? "#22c55e" : "#facc15";
+
+      const sumDividasEl = document.getElementById("sumDividas");
+      sumDividasEl.textContent = formatBRL(totalDividas);
+
+      const metaStatusEl = document.getElementById("metaStatus");
+      const percMeta = metaGuardar > 0 ? (totalGuardado / metaGuardar) * 100 : 0;
+      metaStatusEl.textContent = percMeta.toFixed(1) + "%";
+
+      const ctx = document.getElementById("chartGuardado").getContext("2d");
+      if (chartGuardado) chartGuardado.destroy();
+      chartGuardado = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels: chartLabels,
+          datasets: [
+            {
+              label: "Total guardado (dia)",
+              data: chartValues,
+              borderWidth: 2,
+              fill: false
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { labels: { color: "#e5e7eb", font: { size: 11 } } } },
+          scales: {
+            x: { ticks: { color: "#9ca3af", font: { size: 10 } } },
+            y: { ticks: { color: "#9ca3af", font: { size: 10 } } }
+          }
+        }
+      });
+    }
+
+    function recalcularOperacao(tbodyId, prefix) {
+      const rows = Array.from(document.querySelectorAll(`#${tbodyId} tr`));
+
+      let totalGasto = 0;
+      let totalRetorno = 0;
+      let totalLucro = 0;
+      let caixaAcumulado = 0;
+
+      rows.forEach((tr) => {
+        const tds = tr.querySelectorAll("td");
+        const gasto = parseValor(tds[2].querySelector("input").value);
+        const retorno = parseValor(tds[3].querySelector("input").value);
+
+        const roi = gasto > 0 ? retorno / gasto : 0;
+        const lucro = retorno - gasto;
+        caixaAcumulado += retorno;
+
+        tds[4].textContent = roi.toFixed(2);
+        tds[5].textContent = formatBRL(lucro);
+        tds[6].textContent = formatBRL(caixaAcumulado);
+
+        if (roi === 0) tds[4].style.background = "transparent";
+        else if (roi < 1) tds[4].style.background = "#7f1d1d";
+        else if (roi >= 2) tds[4].style.background = "#14532d";
+        else tds[4].style.background = "#1f2937";
+
+        totalGasto += gasto;
+        totalRetorno += retorno;
+        totalLucro += lucro;
+      });
+
+      const totalGastoEl = document.getElementById(prefix + "TotalGasto");
+      const totalRetornoEl = document.getElementById(prefix + "TotalRetorno");
+      const roiMedioEl = document.getElementById(prefix + "RoiMedio");
+      const lucroTotalEl = document.getElementById(prefix + "LucroTotal");
+
+      const roiMedio = totalGasto > 0 ? totalRetorno / totalGasto : 0;
+      totalGastoEl.textContent = formatBRL(totalGasto);
+      totalRetornoEl.textContent = formatBRL(totalRetorno);
+      roiMedioEl.textContent = roiMedio.toFixed(2);
+      lucroTotalEl.textContent = "Lucro: " + formatBRL(totalLucro);
+
+      roiMedioEl.style.color = roiMedio >= 2 ? "#22c55e" : "#facc15";
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      // linhas iniciais
+      for (let i = 0; i < 5; i++) addRowData();
+      for (let i = 0; i < 5; i++) addRowOperacao("pvBody");
+      for (let i = 0; i < 5; i++) addRowOperacao("escBody");
+
+      // botões
+      document.getElementById("btnAddLinhaData").addEventListener("click", () => {
+        addRowData();
+      });
+      document.getElementById("btnAtualizarPainel").addEventListener("click", () => {
+        recalcularFinanceiro();
+      });
+
+      document.getElementById("btnAddLinhaPV").addEventListener("click", () => {
+        addRowOperacao("pvBody");
+      });
+      document.getElementById("btnAtualizarPV").addEventListener("click", () => {
+        recalcularOperacao("pvBody", "pv");
+      });
+
+      document.getElementById("btnAddLinhaEsc").addEventListener("click", () => {
+        addRowOperacao("escBody");
+      });
+      document.getElementById("btnAtualizarEsc").addEventListener("click", () => {
+        recalcularOperacao("escBody", "esc");
+      });
+
+      // recalcular automático ao digitar
+      document.addEventListener("input", (e) => {
+        const el = e.target;
+        if (
+          el.closest("#metasBody") ||
+          el.closest("#dataBody") ||
+          el.id === "limEssenciais" ||
+          el.id === "limNaoEssenciais" ||
+          el.id === "metaGuardar"
+        ) {
+          recalcularFinanceiro();
+        }
+        if (el.closest("#pvBody")) {
+          recalcularOperacao("pvBody", "pv");
+        }
+        if (el.closest("#escBody")) {
+          recalcularOperacao("escBody", "esc");
+        }
+      });
+
+      recalcularFinanceiro();
+      recalcularOperacao("pvBody", "pv");
+      recalcularOperacao("escBody", "esc");
+    });
+  </script>
+</body>
+</html>
